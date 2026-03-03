@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/finance_controller.dart';
+import '../widgets/app_logo.dart';
 import 'modules.dart';
 
 class HomeShell extends StatefulWidget {
@@ -29,7 +30,10 @@ class _HomeShellState extends State<HomeShell> {
     ];
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FinPilot'),
+        title: const AppLogo(
+          size: 34,
+          nameStyle: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
+        ),
         actions: <Widget>[
           IconButton(
             onPressed: widget.controller.toggleTheme,

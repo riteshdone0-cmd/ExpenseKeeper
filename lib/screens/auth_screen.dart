@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../core/finance_controller.dart';
+import '../widgets/app_logo.dart';
 
 class AuthScreen extends StatefulWidget {
   const AuthScreen({super.key, required this.controller});
@@ -45,8 +46,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           ],
         ),
         actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Verify')),
+          TextButton(onPressed: () async  => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+          FilledButton(onPressed: () async => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Verify')),
         ],
       ),
     );
@@ -60,8 +61,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
         title: const Text('Forgot password'),
         content: TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email')),
         actions: <Widget>[
-          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
-          FilledButton(onPressed: () => Navigator.of(ctx).pop(emailController.text.trim()), child: const Text('Send OTP')),
+          TextButton(onPressed: () async  => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+          FilledButton(onPressed: () async => Navigator.of(ctx).pop(emailController.text.trim()), child: const Text('Send OTP')),
         ],
       ),
     );
@@ -83,8 +84,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
           title: const Text('Set new password'),
           content: TextField(controller: newPassController, obscureText: true, decoration: const InputDecoration(labelText: 'New password')),
           actions: <Widget>[
-            TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
-            FilledButton(onPressed: () => Navigator.of(ctx).pop(newPassController.text.trim()), child: const Text('Set')),
+            TextButton(onPressed: () async => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+            FilledButton(onPressed: () async => Navigator.of(ctx).pop(newPassController.text.trim()), child: const Text('Set')),
           ],
         ),
       );
@@ -136,7 +137,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     }
   }
 
-  void _handleRegister() {
+  Future<void> _handleRegister() async {
     final income = double.tryParse(_registerIncome.text.trim());
     final budget = double.tryParse(_registerBudget.text.trim());
     final email = _registerEmail.text.trim();
@@ -157,7 +158,7 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
     try {
       final sentOtp = widget.controller.sendRegistrationOtp(email);
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('OTP sent (demo): $sentOtp')));
-      final otp = await _promptForOtp(email, purpose: 'registration');
+    final otp = await _promptForOtp(email, purpose: 'registration');
       if (otp == null) {
         setState(() => _error = 'Registration cancelled.');
         return;
@@ -194,9 +195,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: <Widget>[
+                    const AppLogo(size: 54),
+                    const SizedBox(height: 8),
                     Text(
                       'AI Expense Intelligence',
-                      style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
                     ),
                     const SizedBox(height: 14),
                     TabBar(controller: _tabs, tabs: const <Widget>[Tab(text: 'Login'), Tab(text: 'Register')]),
