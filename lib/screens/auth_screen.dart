@@ -18,6 +18,8 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   final _registerName = TextEditingController();
   final _registerEmail = TextEditingController();
   final _registerPass = TextEditingController();
+  int _registerPassScore = 0;
+  String _registerPassLabel = '';
   final _registerIncome = TextEditingController(text: '60000');
   final _registerBudget = TextEditingController(text: '32000');
   String? _error;
@@ -26,6 +28,90 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   void initState() {
     super.initState();
     _tabs = TabController(length: 2, vsync: this);
+  }
+
+  Future<String?> _promptForOtp(String email, {required String purpose}) async {
+    final controller = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Enter OTP'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: <Widget>[
+            Text('We sent an OTP to $email for $purpose.'),
+            const SizedBox(height: 8),
+            TextField(controller: controller, decoration: const InputDecoration(labelText: 'OTP')),
+          ],
+        ),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(controller.text.trim()), child: const Text('Verify')),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleForgotPassword() async {
+    final emailController = TextEditingController(text: _loginEmail.text.trim());
+    final email = await showDialog<String?>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Forgot password'),
+        content: TextField(controller: emailController, decoration: const InputDecoration(labelText: 'Email')),
+        actions: <Widget>[
+          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+          FilledButton(onPressed: () => Navigator.of(ctx).pop(emailController.text.trim()), child: const Text('Send OTP')),
+        ],
+      ),
+    );
+    if (email == null || email.isEmpty) {
+      return;
+    }
+    try {
+      final sent = widget.controller.sendPasswordResetOtp(email);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('OTP sent (demo): $sent')));
+      final otp = await _promptForOtp(email, purpose: 'password reset');
+      if (otp == null) {
+        setState(() => _error = 'Password reset cancelled.');
+        return;
+      }
+      final newPassController = TextEditingController();
+      final newPass = await showDialog<String?>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Set new password'),
+          content: TextField(controller: newPassController, obscureText: true, decoration: const InputDecoration(labelText: 'New password')),
+          actions: <Widget>[
+            TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+            FilledButton(onPressed: () => Navigator.of(ctx).pop(newPassController.text.trim()), child: const Text('Set')),
+          ],
+        ),
+      );
+      if (newPass == null || newPass.isEmpty) {
+        setState(() => _error = 'Password reset cancelled.');
+        return;
+      }
+      final score = _assessPassword(newPass);
+      if (score < 2) {
+        setState(() => _error = 'New password is too weak.');
+        return;
+      }
+      widget.controller.resetPasswordWithOtp(email: email, otp: otp, newPassword: newPass);
+      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Password updated successfully')));
+      setState(() => _error = null);
+    } catch (e) {
+      setState(() => _error = e.toString().replaceFirst('Exception: ', ''));
+    }
+  }
+
+  int _assessPassword(String pwd) {
+    var score = 0;
+    if (pwd.length >= 8) score += 1;
+    if (RegExp(r'[a-z]').hasMatch(pwd) && RegExp(r'[A-Z]').hasMatch(pwd)) score += 1;
+    if (RegExp(r'\d').hasMatch(pwd)) score += 1;
+    if (RegExp(r'[!@#\$%\^&*(),.?":{}|<>]').hasMatch(pwd)) score += 1;
+    return score; // 0..4
   }
 
   @override
@@ -53,15 +139,38 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
   void _handleRegister() {
     final income = double.tryParse(_registerIncome.text.trim());
     final budget = double.tryParse(_registerBudget.text.trim());
+    final email = _registerEmail.text.trim();
+    final pass = _registerPass.text.trim();
     if (income == null || budget == null || income <= 0 || budget <= 0) {
       setState(() => _error = 'Income and budget must be valid numbers.');
       return;
     }
+    if (email.isEmpty || _registerName.text.trim().isEmpty) {
+      setState(() => _error = 'Name and email are required.');
+      return;
+    }
+    if (_registerPassScore < 2) {
+      setState(() => _error = 'Password is too weak. Use a stronger password.');
+      return;
+    }
+
     try {
+      final sentOtp = widget.controller.sendRegistrationOtp(email);
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('OTP sent (demo): $sentOtp')));
+      final otp = await _promptForOtp(email, purpose: 'registration');
+      if (otp == null) {
+        setState(() => _error = 'Registration cancelled.');
+        return;
+      }
+      final ok = widget.controller.verifyRegistrationOtp(email, otp);
+      if (!ok) {
+        setState(() => _error = 'Invalid or expired OTP.');
+        return;
+      }
       widget.controller.register(
         name: _registerName.text.trim(),
-        email: _registerEmail.text.trim(),
-        password: _registerPass.text.trim(),
+        email: email,
+        password: pass,
         monthlyIncome: income,
         monthlyBudget: budget,
       );
@@ -106,6 +215,11 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                                 obscureText: true,
                                 decoration: const InputDecoration(labelText: 'Password'),
                               ),
+                              const SizedBox(height: 8),
+                              Align(
+                                alignment: Alignment.centerRight,
+                                child: TextButton(onPressed: _handleForgotPassword, child: const Text('Forgot password?')),
+                              ),
                               const SizedBox(height: 18),
                               FilledButton(
                                 onPressed: _handleLogin,
@@ -122,7 +236,35 @@ class _AuthScreenState extends State<AuthScreen> with SingleTickerProviderStateM
                               TextField(
                                 controller: _registerPass,
                                 obscureText: true,
+                                onChanged: (v) {
+                                  final s = _assessPassword(v);
+                                  setState(() {
+                                    _registerPassScore = s;
+                                    if (s <= 1) {
+                                      _registerPassLabel = 'Weak';
+                                    } else if (s == 2) {
+                                      _registerPassLabel = 'Medium';
+                                    } else {
+                                      _registerPassLabel = 'Strong';
+                                    }
+                                  });
+                                },
                                 decoration: const InputDecoration(labelText: 'Password'),
+                              ),
+                              const SizedBox(height: 6),
+                              Row(
+                                children: <Widget>[
+                                  Expanded(
+                                    child: LinearProgressIndicator(
+                                      value: _registerPassScore / 4,
+                                      color: _registerPassScore >= 3 ? Colors.green : (_registerPassScore == 2 ? Colors.orange : Colors.red),
+                                      backgroundColor: Colors.grey.shade200,
+                                      minHeight: 6,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(_registerPassLabel),
+                                ],
                               ),
                               const SizedBox(height: 10),
                               TextField(
